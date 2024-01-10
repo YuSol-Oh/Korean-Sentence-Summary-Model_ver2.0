@@ -63,10 +63,78 @@ _(최종 점수 계산 방식과 문법적 중요도 점수 부여 부분을 수
 * 요약된 문서가 원본 문서의 핵심 어절을 포함하고 있는지 평가하기 위해, 모델이 생성한 요약문과 정답 요약문의 유사 정도를 평가하였다.
 * 전체 데이터에 대해서 코사인 유사도를 계산 후 평균을 내었을 때, 약 0.68의 유사도를 보였다.
 
+```python
+# 파일 경로 설정
+source_file = './source_축약 전 원문 파일.txt'
+target_file = './target_정답 축약 문장 파일.txt'
+
+source_sentences = []
+target_sentences = []
+
+with open(source_file,'r',encoding='utf-8') as r:
+  source_sentences = r.readlines()
+
+with open(target_file, 'r', encoding='utf-8') as r :
+  target_sentences = r.readlines()
+
+# 각 경우의 수에 대해 문장 압축을 수행하고 결과 저장
+all_cosine_similarities = []
+
+for i in range(len(source_sentences)): # 각 문장 쌍에 대해서
+
+  input_sentence = source_sentences[i].strip()
+  target_sentence = target_sentences[i].strip()
+
+  print(int(time.time()-start_time), "초 소요", datetime.datetime.now())
+
+  compressed_sentence = compress_sentence(input_sentence, a, b, c, d, e, f, g) # 문장 요약
+  target_embedding = encode_sentence(target_sentence ) # 정답 요약 문장
+  compressed_embedding = encode_sentence(compressed_sentence) # 모델 요약 문장
+  similarity = cosine_similarity(target_embedding, compressed_embedding)[0][0] # 유사도 계산
+
+  # 현재 문장 쌍에 대해 코사인 유사도, parameter를 리스트에 추가
+  all_cosine_similarities.append(similarity)
+```
+
 ② ROUGE-W 점수
 * 모델이 생성한 요약문과 정답 요약문 사이의 연속된 일치를 고려하여 가중치를 할당한 점수이다.
 * ROUGE-W 점수가 작을 수록 두 문장이 유사함을 의미한다.
 * 전체 데이터의 ROUGE-W 점수 분포를 보았을 때, 0에 가깝게 분포함을 확인할 수 있었다.
+
+```python
+def f(k):
+    return k**0.5
+
+def rouge_lcs(target, model, weighted=True):
+    m, n = len(target), len(model)
+
+    # Initialize the c-table
+    c_table = [[0]*(n+1) for i in range(m+1)]
+    # Initialize the w-table
+    w_table = [[0]*(n+1) for i in range(m+1)]
+
+    for i in range(m+1):
+        for j in range(n+1):
+            if i == 0 or j == 0:
+                continue
+            # The length of consecutive matches at
+            # position i-1 and j-1
+            elif target[i-1] == model[j-1]:
+                # Increment would be +1 for normal LCS
+                k = w_table[i-1][j-1]
+                increment = f(k+1) - f(k) if weighted else 1
+                # Add the increment
+                c_table[i][j] = c_table[i-1][j-1] + increment
+                w_table[i][j] = k + 1
+            else:
+                if c_table[i-1][j] > c_table[i][j-1]:
+                    c_table[i][j] = c_table[i-1][j]
+                    w_table[i][j] = 0 # no match at i,j
+                else:
+                    c_table[i][j] = c_table[i][j-1]
+                    w_table[i][j] = 0 # no match at i,j
+    return c_table[m][n]
+```
 
 ③ 네이버 CLOVA Summary API와 비교
 * 본 프로젝트에서 제안한 단어 추출 요약 모델을 이용했을 때와, 네이버의 문장 추출 요약 모델을 이용했을 때의 요약 결과를 비교하였다.
